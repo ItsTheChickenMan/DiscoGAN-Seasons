@@ -18,8 +18,8 @@ parser.add_argument('--task_name', type=str, default='facescrub', help='Set data
 parser.add_argument('--epoch_size', type=int, default=5000, help='Set epoch size')
 parser.add_argument('--batch_size', type=int, default=64, help='Set batch size')
 parser.add_argument('--learning_rate', type=float, default=0.0002, help='Set learning rate for optimizer')
-parser.add_argument('--result_path', type=str, default='./results/', help='Set the path the result images will be saved.')
-parser.add_argument('--model_path', type=str, default='./models/', help='Set the path for trained models')
+parser.add_argument('--result_path', type=str, default=os.path.abspath('./results/'), help='Set the path the result images will be saved.')
+parser.add_argument('--model_path', type=str, default=os.path.abspath('./models/'), help='Set the path for trained models')
 parser.add_argument('--model_arch', type=str, default='discogan', help='choose among gan/recongan/discogan. gan - standard GAN, recongan - GAN with reconstruction, discogan - DiscoGAN.')
 parser.add_argument('--image_size', type=int, default=64, help='Image size. 64 for every experiment in the paper')
 
@@ -242,7 +242,8 @@ def main():
 
                 n_testset = min( test_A.size()[0], test_B.size()[0] )
 
-                subdir_path = os.path.join( result_path, str(iters / args.image_save_interval) )
+                save_dir = "iter_%d" % iters
+                subdir_path = os.path.join( result_path, save_dir )
 
                 if os.path.exists( subdir_path ):
                     pass
@@ -266,12 +267,16 @@ def main():
                     imageio.imwrite( filename_prefix + '.BAB.jpg', BAB_val.astype(np.uint8)[:,:,::-1])
 
             if iters % args.model_save_interval == 0:
-                subdir_path = os.path.join(model_path, str(iters / args.image_save_interval))
+                save_dir = "iter_%d" % iters
+                subdir_path = os.path.join(model_path, save_dir)
                 
-                torch.save( generator_A, os.path.join(subdir_path, 'model_gen_A-' + str( iters / args.model_save_interval )))
-                torch.save( generator_B, os.path.join(subdir_path, 'model_gen_B-' + str( iters / args.model_save_interval )))
-                torch.save( discriminator_A, os.path.join(subdir_path, 'model_dis_A-' + str( iters / args.model_save_interval )))
-                torch.save( discriminator_B, os.path.join(subdir_path, 'model_dis_B-' + str( iters / args.model_save_interval )))
+                if not os.path.exists(subdir_path):
+                    os.makedirs(subdir_path)
+        
+                torch.save( generator_A, os.path.join(subdir_path, 'model_gen_A'))
+                torch.save( generator_B, os.path.join(subdir_path, 'model_gen_B'))
+                torch.save( discriminator_A, os.path.join(subdir_path, 'model_dis_A'))
+                torch.save( discriminator_B, os.path.join(subdir_path, 'model_dis_B'))
 
             iters += 1
 
