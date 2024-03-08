@@ -38,6 +38,7 @@ parser.add_argument('--model_save_interval', type=int, default=10000, help='Save
 
 parser.add_argument("--checkpoint_dir", type=str, default=None, help="If specified, continue training using the specified checkpoint directory.  an exception will be raised if this is used without also specifying --checkpoint_iters")
 parser.add_argument("--checkpoint_iters", type=int, default=None, help="The number of iterations of training done when the checkpoint model was saved.  this must be specified when --checkpoint_dir is used.")
+parser.add_argument("--checkpoint_epoch", type=int, default=None, help="The number of epochs of training done when the checkpoint model was saved.  this must be specified when --checkpoint_dir is used.")
 
 def as_np(data):
     return data.cpu().data.numpy()
@@ -131,6 +132,7 @@ def main():
 
     models = [generator_A, generator_B, discriminator_A, discriminator_B]
     
+    epochs = 0
     iters = 0
     
     if args.checkpoint_dir != None:
@@ -138,12 +140,14 @@ def main():
         if args.checkpoint_iters == None:
             print("--checkpoint_dir was specified without --checkpoint_iters")
             exit()
+        elif args.checkpoint_epoch == None:
+            print("--checkpoint_dir was specified without --checkpoint_epoch")
+            exit()
         else:
             iters = args.checkpoint_iters
+            epoch = args.checkpoint_epoch
             
             checkpoint_dir = os.path.join(model_path, os.path.normpath(args.checkpoint_dir))
-            
-            print(checkpoint_dir)
             
             for i in range(len(checkpoint_save_files)):
                 p = checkpoint_save_files[i]
@@ -179,7 +183,7 @@ def main():
     gen_loss_total = []
     dis_loss_total = []
 
-    for epoch in range(epoch_size):
+    while epoch < epoch_size:
         data_style_A, data_style_B = shuffle_data( data_style_A, data_style_B )
 
         widgets = ['epoch #%d|' % epoch, Percentage(), Bar(), ETA()]
@@ -300,18 +304,21 @@ def main():
 
             if iters % args.model_save_interval == 0:
                 save_dir = "iter_%d" % iters
+                file_suffix = "_epoch_%d" % epoch
                 subdir_path = os.path.join(model_path, save_dir)
                 pt_ext = ".pt"
                 
                 if not os.path.exists(subdir_path):
                     os.makedirs(subdir_path)
         
-                torch.save( generator_A.state_dict(), os.path.join(subdir_path, 'model_gen_A' + pt_ext))
-                torch.save( generator_B.state_dict(), os.path.join(subdir_path, 'model_gen_B' + pt_ext))
-                torch.save( discriminator_A.state_dict(), os.path.join(subdir_path, 'model_dis_A' + pt_ext))
-                torch.save( discriminator_B.state_dict(), os.path.join(subdir_path, 'model_dis_B' + pt_ext))
+                torch.save( generator_A.state_dict(), os.path.join(subdir_path, 'model_gen_A' + file_suffix + pt_ext))
+                torch.save( generator_B.state_dict(), os.path.join(subdir_path, 'model_gen_B' + file_suffix + pt_ext))
+                torch.save( discriminator_A.state_dict(), os.path.join(subdir_path, 'model_dis_A' + file_suffix + pt_ext))
+                torch.save( discriminator_B.state_dict(), os.path.join(subdir_path, 'model_dis_B' + file_suffix + pt_ext))
 
             iters += 1
+        
+        epoch += 1
 
 if __name__=="__main__":
     main()
