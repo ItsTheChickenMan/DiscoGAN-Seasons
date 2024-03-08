@@ -269,14 +269,15 @@ def main():
             if iters % args.model_save_interval == 0:
                 save_dir = "iter_%d" % iters
                 subdir_path = os.path.join(model_path, save_dir)
+                pt_ext = ".pt"
                 
                 if not os.path.exists(subdir_path):
                     os.makedirs(subdir_path)
         
-                torch.save( generator_A, os.path.join(subdir_path, 'model_gen_A'))
-                torch.save( generator_B, os.path.join(subdir_path, 'model_gen_B'))
-                torch.save( discriminator_A, os.path.join(subdir_path, 'model_dis_A'))
-                torch.save( discriminator_B, os.path.join(subdir_path, 'model_dis_B'))
+                torch.save( generator_A.state_dict(), os.path.join(subdir_path, 'model_gen_A' + pt_ext))
+                torch.save( generator_B.state_dict(), os.path.join(subdir_path, 'model_gen_B' + pt_ext))
+                torch.save( discriminator_A.state_dict(), os.path.join(subdir_path, 'model_dis_A' + pt_ext))
+                torch.save( discriminator_B.state_dict(), os.path.join(subdir_path, 'model_dis_B' + pt_ext))
 
             iters += 1
 
