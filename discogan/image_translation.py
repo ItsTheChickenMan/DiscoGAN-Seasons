@@ -141,7 +141,9 @@ def main():
         else:
             iters = args.checkpoint_iters
             
-            checkpoint_dir = os.path.join(model_path, os.path.abspath(args.checkpoint_dir))
+            checkpoint_dir = os.path.join(model_path, os.path.normpath(args.checkpoint_dir))
+            
+            print(checkpoint_dir)
             
             for i in range(len(checkpoint_save_files)):
                 p = checkpoint_save_files[i]
