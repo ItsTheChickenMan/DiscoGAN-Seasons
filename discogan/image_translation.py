@@ -27,8 +27,6 @@ parser.add_argument('--gan_curriculum', type=int, default=10000, help='Strong GA
 parser.add_argument('--starting_rate', type=float, default=0.01, help='Set the lambda weight between GAN loss and Recon loss during curriculum period at the beginning. We used the 0.01 weight.')
 parser.add_argument('--default_rate', type=float, default=0.5, help='Set the lambda weight between GAN loss and Recon loss after curriculum period. We used the 0.5 weight.')
 
-parser.add_argument('--style_A', type=str, default=None, help='Style for CelebA dataset. Could be any attributes in celebA (Young, Male, Blond_Hair, Wearing_Hat ...)')
-parser.add_argument('--style_B', type=str, default=None, help='Style for CelebA dataset. Could be any attributes in celebA (Young, Male, Blond_Hair, Wearing_Hat ...)')
 parser.add_argument('--constraint', type=str, default=None, help='Constraint for celebA dataset. Only images satisfying this constraint is used. For example, if --constraint=Male, and --constraint_type=1, only male images are used for both style/domain.')
 parser.add_argument('--constraint_type', type=str, default=None, help='Used along with --constraint. If --constraint_type=1, only images satisfying the constraint are used. If --constraint_type=-1, only images not satisfying the constraint are used.')
 parser.add_argument('--n_test', type=int, default=200, help='Number of test data.')
@@ -100,13 +98,9 @@ def main():
     batch_size = args.batch_size
 
     result_path = os.path.join( args.result_path, args.task_name )
-    if args.style_A:
-        result_path = os.path.join( result_path, args.style_A )
     result_path = os.path.join( result_path, args.model_arch )
 
     model_path = os.path.join( args.model_path, args.task_name )
-    if args.style_A:
-        model_path = os.path.join( model_path, args.style_A )
     model_path = os.path.join( model_path, args.model_arch )
 
     data_style_A, data_style_B, test_style_A, test_style_B = get_data()
@@ -272,10 +266,12 @@ def main():
                     imageio.imwrite( filename_prefix + '.BAB.jpg', BAB_val.astype(np.uint8)[:,:,::-1])
 
             if iters % args.model_save_interval == 0:
-                torch.save( generator_A, os.path.join(model_path, 'model_gen_A-' + str( iters / args.model_save_interval )))
-                torch.save( generator_B, os.path.join(model_path, 'model_gen_B-' + str( iters / args.model_save_interval )))
-                torch.save( discriminator_A, os.path.join(model_path, 'model_dis_A-' + str( iters / args.model_save_interval )))
-                torch.save( discriminator_B, os.path.join(model_path, 'model_dis_B-' + str( iters / args.model_save_interval )))
+                subdir_path = os.path.join(model_path, str(iters / args.image_save_interval))
+                
+                torch.save( generator_A, os.path.join(subdir_path, 'model_gen_A-' + str( iters / args.model_save_interval )))
+                torch.save( generator_B, os.path.join(subdir_path, 'model_gen_B-' + str( iters / args.model_save_interval )))
+                torch.save( discriminator_A, os.path.join(subdir_path, 'model_dis_A-' + str( iters / args.model_save_interval )))
+                torch.save( discriminator_B, os.path.join(subdir_path, 'model_dis_B-' + str( iters / args.model_save_interval )))
 
             iters += 1
 

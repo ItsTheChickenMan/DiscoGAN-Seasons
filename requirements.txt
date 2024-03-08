@@ -1,5 +1,7 @@
 torch
 torchvision
 numpy
-progressbar
+scipy
+pandas
 opencv-python
+progressbar2
