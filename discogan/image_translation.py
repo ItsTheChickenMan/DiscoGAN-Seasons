@@ -90,9 +90,6 @@ def main():
     global args
     args = parser.parse_args()
     
-    checkpoint_save_ext = ".pt"
-    checkpoint_save_files = ["model_gen_A" + checkpoint_save_ext, "model_gen_B" + checkpoint_save_ext, "model_dis_A" + checkpoint_save_ext, "model_dis_B" + checkpoint_save_ext]
-
     cuda = args.cuda
     if cuda == 'true':
         cuda = True
@@ -132,7 +129,7 @@ def main():
 
     models = [generator_A, generator_B, discriminator_A, discriminator_B]
     
-    epochs = 0
+    epoch = 0
     iters = 0
     
     if args.checkpoint_dir != None:
@@ -149,15 +146,25 @@ def main():
             
             checkpoint_dir = os.path.join(model_path, os.path.normpath(args.checkpoint_dir))
             
-            for i in range(len(checkpoint_save_files)):
-                p = checkpoint_save_files[i]
-                model = models[i]
+            checkpoints = os.listdir(checkpoint_dir)
+            
+            if len(checkpoints) != len(models):
+                print("not enough models in specified --checkpoint_dir")
+                exit()
+            
+            for checkpoint in checkpoints:
+                model_checkpoint_path = os.path.join(checkpoint_dir, checkpoint)
+            
+                model_state_dict = torch.load(model_checkpoint_path, map_location="cpu")
                 
-                file = os.path.join(checkpoint_dir, p)
-                
-                model_state_dict = torch.load(file, map_location='cpu')
-                
-                model.load_state_dict(model_state_dict)
+                if checkpoint.startswith("model_gen_A"):
+                    generator_A.load_state_dict(model_state_dict)
+                elif checkpoint.startswith("model_gen_B"):
+                    generator_B.load_state_dict(model_state_dict)
+                elif checkpoint.startswith("model_dis_A"):
+                    discriminator_A.load_state_dict(model_state_dict)
+                elif checkpoint.startswith("model_dis_B"):
+                    discriminator_B.load_state_dict(model_state_dict)
     
     if cuda:
         test_A = test_A.cuda()
@@ -303,19 +310,20 @@ def main():
                     imageio.imwrite( filename_prefix + '.BAB.jpg', BAB_val.astype(np.uint8)[:,:,::-1])
 
             if iters % args.model_save_interval == 0:
-                save_dir = "iter_%d" % iters
-                file_suffix = "_epoch_%d" % epoch
+                save_dir = "iter_%d_epoch_%d" % (iters, epoch)
+                file_suffix = ""
+                # file_suffix = "_epoch_%d" % epoch
                 subdir_path = os.path.join(model_path, save_dir)
                 pt_ext = ".pt"
                 
                 if not os.path.exists(subdir_path):
                     os.makedirs(subdir_path)
-        
+                
                 torch.save( generator_A.state_dict(), os.path.join(subdir_path, 'model_gen_A' + file_suffix + pt_ext))
                 torch.save( generator_B.state_dict(), os.path.join(subdir_path, 'model_gen_B' + file_suffix + pt_ext))
                 torch.save( discriminator_A.state_dict(), os.path.join(subdir_path, 'model_dis_A' + file_suffix + pt_ext))
                 torch.save( discriminator_B.state_dict(), os.path.join(subdir_path, 'model_dis_B' + file_suffix + pt_ext))
-
+            
             iters += 1
         
         epoch += 1
