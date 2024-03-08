@@ -36,6 +36,9 @@ parser.add_argument('--log_interval', type=int, default=50, help='Print loss val
 parser.add_argument('--image_save_interval', type=int, default=1000, help='Save test results every image_save_interval iterations.')
 parser.add_argument('--model_save_interval', type=int, default=10000, help='Save models every model_save_interval iterations.')
 
+parser.add_argument("--checkpoint_dir", type=str, default=None, help="If specified, continue training using the specified checkpoint directory.  an exception will be raised if this is used without also specifying --checkpoint_iters")
+parser.add_argument("--checkpoint_iters", type=int, default=None, help="The number of iterations of training done when the checkpoint model was saved.  this must be specified when --checkpoint_dir is used.")
+
 def as_np(data):
     return data.cpu().data.numpy()
 
@@ -85,6 +88,9 @@ def main():
 
     global args
     args = parser.parse_args()
+    
+    checkpoint_save_ext = ".pt"
+    checkpoint_save_files = ["model_gen_A" + checkpoint_save_ext, "model_gen_B" + checkpoint_save_ext, "model_dis_A" + checkpoint_save_ext, "model_dis_B" + checkpoint_save_ext]
 
     cuda = args.cuda
     if cuda == 'true':
@@ -99,9 +105,11 @@ def main():
 
     result_path = os.path.join( args.result_path, args.task_name )
     result_path = os.path.join( result_path, args.model_arch )
+    result_path = os.path.abspath(result_path)
 
     model_path = os.path.join( args.model_path, args.task_name )
     model_path = os.path.join( model_path, args.model_arch )
+    model_path = os.path.abspath(model_path)
 
     data_style_A, data_style_B, test_style_A, test_style_B = get_data()
     
@@ -121,6 +129,30 @@ def main():
     discriminator_A = Discriminator()
     discriminator_B = Discriminator()
 
+    models = [generator_A, generator_B, discriminator_A, discriminator_B]
+    
+    iters = 0
+    
+    if args.checkpoint_dir != None:
+        # check that checkpoint_iters is also defined
+        if args.checkpoint_iters == None:
+            print("--checkpoint_dir was specified without --checkpoint_iters")
+            exit()
+        else:
+            iters = args.checkpoint_iters
+            
+            checkpoint_dir = os.path.join(model_path, os.path.abspath(args.checkpoint_dir))
+            
+            for i in range(len(checkpoint_save_files)):
+                p = checkpoint_save_files[i]
+                model = models[i]
+                
+                file = os.path.join(checkpoint_dir, p)
+                
+                model_state_dict = torch.load(file, map_location='cpu')
+                
+                model.load_state_dict(model_state_dict)
+    
     if cuda:
         test_A = test_A.cuda()
         test_B = test_B.cuda()
@@ -141,8 +173,6 @@ def main():
 
     optim_gen = optim.Adam( gen_params, lr=args.learning_rate, betas=(0.5,0.999), weight_decay=0.00001)
     optim_dis = optim.Adam( dis_params, lr=args.learning_rate, betas=(0.5,0.999), weight_decay=0.00001)
-
-    iters = 0
 
     gen_loss_total = []
     dis_loss_total = []
