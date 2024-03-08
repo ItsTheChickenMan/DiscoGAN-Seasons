@@ -9,6 +9,7 @@ from torch.autograd import Variable
 from dataset import *
 from model import *
 import scipy
+import imageio
 from progressbar import ETA, Bar, Percentage, ProgressBar
 
 parser = argparse.ArgumentParser(description='PyTorch implementation of DiscoGAN')
@@ -42,50 +43,34 @@ def as_np(data):
 
 def get_data():
     # celebA / edges2shoes / edges2handbags / ...
-    if args.task_name == 'facescrub':
-        data_A, data_B = get_facescrub_files(test=False, n_test=args.n_test)
-        test_A, test_B = get_facescrub_files(test=True, n_test=args.n_test)
-
-    elif args.task_name == 'celebA':
-        data_A, data_B = get_celebA_files(style_A=args.style_A, style_B=args.style_B, constraint=args.constraint, constraint_type=args.constraint_type, test=False, n_test=args.n_test)
-        test_A, test_B = get_celebA_files(style_A=args.style_A, style_B=args.style_B, constraint=args.constraint, constraint_type=args.constraint_type, test=True, n_test=args.n_test)
-
-    elif args.task_name == 'edges2shoes':
-        data_A, data_B = get_edge2photo_files( item='edges2shoes', test=False )
-        test_A, test_B = get_edge2photo_files( item='edges2shoes', test=True )
-
-    elif args.task_name == 'edges2handbags':
-        data_A, data_B = get_edge2photo_files( item='edges2handbags', test=False )
-        test_A, test_B = get_edge2photo_files( item='edges2handbags', test=True )
-
-    elif args.task_name == 'handbags2shoes':
-        data_A_1, data_A_2 = get_edge2photo_files( item='edges2handbags', test=False )
-        test_A_1, test_A_2 = get_edge2photo_files( item='edges2handbags', test=True )
-
-        data_A = np.hstack( [data_A_1, data_A_2] )
-        test_A = np.hstack( [test_A_1, test_A_2] )
-
-        data_B_1, data_B_2 = get_edge2photo_files( item='edges2shoes', test=False )
-        test_B_1, test_B_2 = get_edge2photo_files( item='edges2shoes', test=True )
-
-        data_B = np.hstack( [data_B_1, data_B_2] )
-        test_B = np.hstack( [test_B_1, test_B_2] )
+    if args.task_name == 'summer2winter_yosemite':
+        data_A, data_B = get_summer2winter_yosemite_files( test=False )
+        test_A, test_B = get_summer2winter_yosemite_files( test=True )
+    else:
+        print("bad taskname:", args.task_name)
+        exit()
 
     return data_A, data_B, test_A, test_B
 
-def get_fm_loss(real_feats, fake_feats, criterion):
+def get_fm_loss(real_feats, fake_feats, criterion, cuda):
     losses = 0
     for real_feat, fake_feat in zip(real_feats, fake_feats):
         l2 = (real_feat.mean(0) - fake_feat.mean(0)) * (real_feat.mean(0) - fake_feat.mean(0))
-        loss = criterion( l2, Variable( torch.ones( l2.size() ) ).cuda() )
+        
+        labels = torch.ones(l2.size())
+        
+        if cuda:
+            labels = labels.cuda()
+        
+        loss = criterion( l2, labels )
         losses += loss
 
     return losses
 
 def get_gan_loss(dis_real, dis_fake, criterion, cuda):
-    labels_dis_real = Variable(torch.ones( [dis_real.size()[0], 1] ))
-    labels_dis_fake = Variable(torch.zeros([dis_fake.size()[0], 1] ))
-    labels_gen = Variable(torch.ones([dis_fake.size()[0], 1]))
+    labels_dis_real = torch.ones(dis_real.size()[0], 1, 1, 1)
+    labels_dis_fake = torch.zeros(dis_fake.size()[0], 1, 1, 1)
+    labels_gen = torch.ones(dis_fake.size()[0], 1, 1, 1)
 
     if cuda:
         labels_dis_real = labels_dis_real.cuda()
@@ -125,21 +110,12 @@ def main():
     model_path = os.path.join( model_path, args.model_arch )
 
     data_style_A, data_style_B, test_style_A, test_style_B = get_data()
+    
+    test_A = read_images( test_style_A, args.image_size )
+    test_B = read_images( test_style_B, args.image_size )
 
-    if args.task_name.startswith('edges2'):
-        test_A = read_images( test_style_A, 'A', args.image_size )
-        test_B = read_images( test_style_B, 'B', args.image_size )
-
-    elif args.task_name == 'handbags2shoes' or args.task_name == 'shoes2handbags':
-        test_A = read_images( test_style_A, 'B', args.image_size )
-        test_B = read_images( test_style_B, 'B', args.image_size )
-
-    else:
-        test_A = read_images( test_style_A, None, args.image_size )
-        test_B = read_images( test_style_B, None, args.image_size )
-
-    test_A = Variable( torch.FloatTensor( test_A ), volatile=True )
-    test_B = Variable( torch.FloatTensor( test_B ), volatile=True )
+    test_A = torch.FloatTensor( test_A )
+    test_B = torch.FloatTensor( test_B )
 
     if not os.path.exists(result_path):
         os.makedirs(result_path)
@@ -178,7 +154,7 @@ def main():
     dis_loss_total = []
 
     for epoch in range(epoch_size):
-        data_style_A, data_style_B = shuffle_data( data_style_A, data_style_B)
+        data_style_A, data_style_B = shuffle_data( data_style_A, data_style_B )
 
         widgets = ['epoch #%d|' % epoch, Percentage(), Bar(), ETA()]
         pbar = ProgressBar(maxval=n_batches, widgets=widgets)
@@ -196,18 +172,11 @@ def main():
             A_path = data_style_A[ i * batch_size: (i+1) * batch_size ]
             B_path = data_style_B[ i * batch_size: (i+1) * batch_size ]
 
-            if args.task_name.startswith( 'edges2' ):
-                A = read_images( A_path, 'A', args.image_size )
-                B = read_images( B_path, 'B', args.image_size )
-            elif args.task_name =='handbags2shoes' or args.task_name == 'shoes2handbags':
-                A = read_images( A_path, 'B', args.image_size )
-                B = read_images( B_path, 'B', args.image_size )
-            else:
-                A = read_images( A_path, None, args.image_size )
-                B = read_images( B_path, None, args.image_size )
+            A = read_images( A_path, args.image_size )
+            B = read_images( B_path, args.image_size )
 
-            A = Variable( torch.FloatTensor( A ) )
-            B = Variable( torch.FloatTensor( B ) )
+            A = torch.FloatTensor( A )
+            B = torch.FloatTensor( B )
 
             if cuda:
                 A = A.cuda()
@@ -228,14 +197,14 @@ def main():
             A_dis_fake, A_feats_fake = discriminator_A( BA )
 
             dis_loss_A, gen_loss_A = get_gan_loss( A_dis_real, A_dis_fake, gan_criterion, cuda )
-            fm_loss_A = get_fm_loss(A_feats_real, A_feats_fake, feat_criterion)
+            fm_loss_A = get_fm_loss(A_feats_real, A_feats_fake, feat_criterion, cuda)
 
             # Real/Fake GAN Loss (B)
             B_dis_real, B_feats_real = discriminator_B( B )
             B_dis_fake, B_feats_fake = discriminator_B( AB )
 
             dis_loss_B, gen_loss_B = get_gan_loss( B_dis_real, B_dis_fake, gan_criterion, cuda )
-            fm_loss_B = get_fm_loss( B_feats_real, B_feats_fake, feat_criterion )
+            fm_loss_B = get_fm_loss( B_feats_real, B_feats_fake, feat_criterion, cuda)
 
             # Total Loss
 
@@ -265,11 +234,11 @@ def main():
                 optim_gen.step()
 
             if iters % args.log_interval == 0:
-                print "---------------------"
-                print "GEN Loss:", as_np(gen_loss_A.mean()), as_np(gen_loss_B.mean())
-                print "Feature Matching Loss:", as_np(fm_loss_A.mean()), as_np(fm_loss_B.mean())
-                print "RECON Loss:", as_np(recon_loss_A.mean()), as_np(recon_loss_B.mean())
-                print "DIS Loss:", as_np(dis_loss_A.mean()), as_np(dis_loss_B.mean())
+                print("---------------------")
+                print("GEN Loss:", as_np(gen_loss_A.mean()), as_np(gen_loss_B.mean()))
+                print("Feature Matching Loss:", as_np(fm_loss_A.mean()), as_np(fm_loss_B.mean()))
+                print("RECON Loss:", as_np(recon_loss_A.mean()), as_np(recon_loss_B.mean()))
+                print("DIS Loss:", as_np(dis_loss_A.mean()), as_np(dis_loss_B.mean()))
 
             if iters % args.image_save_interval == 0:
                 AB = generator_B( test_A )
@@ -295,12 +264,12 @@ def main():
                     BAB_val = BAB[im_idx].cpu().data.numpy().transpose(1,2,0)* 255.
 
                     filename_prefix = os.path.join (subdir_path, str(im_idx))
-                    scipy.misc.imsave( filename_prefix + '.A.jpg', A_val.astype(np.uint8)[:,:,::-1])
-                    scipy.misc.imsave( filename_prefix + '.B.jpg', B_val.astype(np.uint8)[:,:,::-1])
-                    scipy.misc.imsave( filename_prefix + '.BA.jpg', BA_val.astype(np.uint8)[:,:,::-1])
-                    scipy.misc.imsave( filename_prefix + '.AB.jpg', AB_val.astype(np.uint8)[:,:,::-1])
-                    scipy.misc.imsave( filename_prefix + '.ABA.jpg', ABA_val.astype(np.uint8)[:,:,::-1])
-                    scipy.misc.imsave( filename_prefix + '.BAB.jpg', BAB_val.astype(np.uint8)[:,:,::-1])
+                    imageio.imwrite( filename_prefix + '.A.jpg', A_val.astype(np.uint8)[:,:,::-1])
+                    imageio.imwrite( filename_prefix + '.B.jpg', B_val.astype(np.uint8)[:,:,::-1])
+                    imageio.imwrite( filename_prefix + '.BA.jpg', BA_val.astype(np.uint8)[:,:,::-1])
+                    imageio.imwrite( filename_prefix + '.AB.jpg', AB_val.astype(np.uint8)[:,:,::-1])
+                    imageio.imwrite( filename_prefix + '.ABA.jpg', ABA_val.astype(np.uint8)[:,:,::-1])
+                    imageio.imwrite( filename_prefix + '.BAB.jpg', BAB_val.astype(np.uint8)[:,:,::-1])
 
             if iters % args.model_save_interval == 0:
                 torch.save( generator_A, os.path.join(model_path, 'model_gen_A-' + str( iters / args.model_save_interval )))
