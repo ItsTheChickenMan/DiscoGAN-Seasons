@@ -6,7 +6,7 @@ import pandas as pd
 import scipy.io
 
 
-dataset_path = './datasets/'
+dataset_path = os.path.abspath('./datasets/')
 # celebA_path = os.path.join(dataset_path, 'celebA')
 # handbag_path = os.path.join(dataset_path, 'edges2handbags')
 # shoe_path = os.path.join(dataset_path, 'edges2shoes')

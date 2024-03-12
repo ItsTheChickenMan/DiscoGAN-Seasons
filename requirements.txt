@@ -5,3 +5,4 @@ scipy
 pandas
 opencv-python
 progressbar2
+imageio

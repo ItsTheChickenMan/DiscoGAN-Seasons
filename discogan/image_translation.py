@@ -11,6 +11,7 @@ from model import *
 import scipy
 import imageio
 from progressbar import ETA, Bar, Percentage, ProgressBar
+from zipfile import ZipFile, ZIP_DEFLATED
 
 parser = argparse.ArgumentParser(description='PyTorch implementation of DiscoGAN')
 parser.add_argument('--cuda', type=str, default='true', help='Set cuda usage')
@@ -39,6 +40,8 @@ parser.add_argument('--model_save_interval', type=int, default=10000, help='Save
 parser.add_argument("--checkpoint_dir", type=str, default=None, help="If specified, continue training using the specified checkpoint directory.  an exception will be raised if this is used without also specifying --checkpoint_iters")
 parser.add_argument("--checkpoint_iters", type=int, default=None, help="The number of iterations of training done when the checkpoint model was saved.  this must be specified when --checkpoint_dir is used.")
 parser.add_argument("--checkpoint_epoch", type=int, default=None, help="The number of epochs of training done when the checkpoint model was saved.  this must be specified when --checkpoint_dir is used.")
+
+parser.add_argument("--zip_checkpoints", action="store_true", help="Save checkpoints in a zip file automatically.  this makes downloading them from a Google Colab easier.")
 
 def as_np(data):
     return data.cpu().data.numpy()
@@ -319,10 +322,21 @@ def main():
                 if not os.path.exists(subdir_path):
                     os.makedirs(subdir_path)
                 
-                torch.save( generator_A.state_dict(), os.path.join(subdir_path, 'model_gen_A' + file_suffix + pt_ext))
-                torch.save( generator_B.state_dict(), os.path.join(subdir_path, 'model_gen_B' + file_suffix + pt_ext))
-                torch.save( discriminator_A.state_dict(), os.path.join(subdir_path, 'model_dis_A' + file_suffix + pt_ext))
-                torch.save( discriminator_B.state_dict(), os.path.join(subdir_path, 'model_dis_B' + file_suffix + pt_ext))
+                save_names = ['model_gen_A', 'model_gen_B', 'model_dis_A', 'model_dis_B']
+                save_paths = [os.path.join(subdir_path, name + file_suffix + pt_ext) for name in save_names]
+                
+                for i in range(len(models)):
+                    torch.save(models[i].state_dict(), save_paths[i])
+                
+                if args.zip_checkpoints:
+                    os.chdir(subdir_path)
+                    
+                    with ZipFile(subdir_path + ".zip", "w", compression=ZIP_DEFLATED, compresslevel=5) as out:
+                        for i in range(len(save_names)):
+                            name = save_names[i]
+                            path = save_paths[i]
+                            
+                            out.write(path, name + file_suffix + pt_ext)
             
             iters += 1
         
