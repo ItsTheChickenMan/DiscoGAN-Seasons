@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='PyTorch implementation of DiscoGAN
 parser.add_argument('--cuda', type=str, default='true', help='Set cuda usage')
 parser.add_argument('--task_name', type=str, default='facescrub', help='Set data name')
 parser.add_argument('--epoch_size', type=int, default=5000, help='Set epoch size')
-parser.add_argument('--batch_size', type=int, default=64, help='Set batch size')
+parser.add_argument('--batch_size', type=int, default=-1, help='Set batch size')
 parser.add_argument('--learning_rate', type=float, default=0.0002, help='Set learning rate for optimizer')
 parser.add_argument('--result_path', type=str, default=os.path.abspath('./results/'), help='Set the path the result images will be saved.')
 parser.add_argument('--model_path', type=str, default=os.path.abspath('./models/'), help='Set the path for trained models')
@@ -178,8 +178,12 @@ def main():
         discriminator_B = discriminator_B.cuda()
 
     data_size = min( len(data_style_A), len(data_style_B) )
-    n_batches = ( data_size // batch_size )
-
+    if batch_size == -1:
+        n_batches = 1
+        batch_size = data_size
+    else:
+        n_batches = ( data_size // batch_size )
+        
     recon_criterion = nn.MSELoss()
     gan_criterion = nn.BCELoss()
     feat_criterion = nn.HingeEmbeddingLoss()
